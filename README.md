@@ -1,1 +1,0 @@
-# gamblizard-parser.yml
