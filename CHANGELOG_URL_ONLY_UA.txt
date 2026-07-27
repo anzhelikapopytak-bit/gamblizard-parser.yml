@@ -1,0 +1,9 @@
+V4 URL ONLY
+- Повністю видалено етап FETCHING_HTML.
+- Не відкривається жоден URL сторінки.
+- Playwright використовується лише як fallback для sitemap-файлів, які блокують requests.
+- FULL очищає тільки tech-dump_urls, tech-auto_url_cache і tech-log.
+- Brands/Categories/Missing не очищаються і не змінюються.
+- MONTHLY_FRESH записує тільки URL з lastmod поточного місяця.
+- Додано фазу WRITING_URLS.
+- GitHub log працює без буферизації через python -u та PYTHONUNBUFFERED=1.
