@@ -1,0 +1,96 @@
+name: Gamblizard ES FR URL Export
+
+run-name: ${{ inputs.geo }} URL export · ${{ inputs.run_id }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      geo:
+        description: Direction
+        required: true
+        type: choice
+        options: [ES, FR]
+      spreadsheet_id:
+        description: Target Google Spreadsheet ID
+        required: true
+        type: string
+      run_id:
+        description: Unique run ID from Apps Script
+        required: true
+        type: string
+      run_mode:
+        description: FULL, MONTHLY_FRESH or RETRY_FAILED
+        required: false
+        default: FULL
+        type: choice
+        options: [FULL, MONTHLY_FRESH, RETRY_FAILED]
+      month:
+        description: Month for MONTHLY_FRESH in YYYY-MM
+        required: false
+        default: ""
+        type: string
+      clear_missing:
+        description: Kept for Apps Script compatibility; ignored by URL-only export
+        required: false
+        default: "false"
+        type: choice
+        options: ["false", "true"]
+
+concurrency:
+  group: gamblizard-${{ inputs.geo }}-${{ inputs.spreadsheet_id }}
+  cancel-in-progress: false
+
+jobs:
+  parser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      PYTHONUNBUFFERED: "1"
+      GEO: ${{ inputs.geo }}
+      SPREADSHEET_ID: ${{ inputs.spreadsheet_id }}
+      RUN_ID: ${{ inputs.run_id }}
+      RUN_MODE: ${{ inputs.run_mode }}
+      RUN_MONTH: ${{ inputs.month }}
+      GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+      HEADLESS: "true"
+      REQUEST_TIMEOUT_SECONDS: "30"
+      BROWSER_TIMEOUT_SECONDS: "60"
+      AUTOMATIC_CHALLENGE_WAIT_SECONDS: "20"
+      MAX_DEPTH: "12"
+      MAX_SITEMAPS_PER_SITE: "5000"
+      MAX_URLS_PER_SITE: "500000"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate inputs
+        shell: bash
+        run: |
+          test -n "$SPREADSHEET_ID" || { echo "SPREADSHEET_ID is empty"; exit 1; }
+          test -n "$GOOGLE_SERVICE_ACCOUNT_JSON" || { echo "GOOGLE_SERVICE_ACCOUNT_JSON secret is empty"; exit 1; }
+          test "$GEO" = "ES" -o "$GEO" = "FR" || { echo "GEO must be ES or FR"; exit 1; }
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          python -m playwright install --with-deps chromium
+
+      - name: Export sitemap URLs only
+        run: python -u -m parser.main
+
+      - name: Upload sitemap backups
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.geo }}-url-export-${{ inputs.run_id }}
+          path: output/
+          if-no-files-found: warn
+          retention-days: 14
